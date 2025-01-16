@@ -7,16 +7,8 @@ import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'fra
 import { Upload } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { PresentationTemplate, type PresentationData } from '@/components/PresentationTemplate';
-import { generatePresentation, downloadPresentation } from '@/services/presentation';
+import { generatePresentation, downloadPresentation } from '../services/presentation';
 import { type FileContent } from '@/types/files';
-
-const strategicPositions = [
-  { x: '10%', y: '20%' },  // Top left
-  { x: '70%', y: '15%' },  // Top right
-  { x: '15%', y: '60%' },  // Bottom left
-  { x: '65%', y: '70%' },  // Bottom right
-  { x: '40%', y: '40%' }   // Center
-];
 
 export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -101,7 +93,7 @@ export default function Home() {
         <div className={`relative z-10 w-full transition-all duration-500 ${isGenerating ? 'px-8 flex gap-8' : 'px-4 max-w-3xl mx-auto'}`}>
           <motion.div 
             layout
-            className={`space-y-8 ${isGenerating ? 'w-1/2 text-left' : 'text-center'}`}
+            className={`space-y-8 ${isGenerating ? 'w-1/2 text-left pt-20' : 'text-center'}`}
           >
             <motion.h1 
               layout

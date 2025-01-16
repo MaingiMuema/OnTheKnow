@@ -17,7 +17,9 @@ const generateSlideImagePrompt = (slide: Partial<Slide>) => {
 
 const parseAIResponse = (response: string): PresentationData => {
   try {
-    const data = JSON.parse(response);
+    // Remove markdown code block if present
+    const jsonStr = response.replace(/^```json\n|\n```$/g, '').trim();
+    const data = JSON.parse(jsonStr);
     return {
       id: Date.now().toString(),
       title: data.title,
