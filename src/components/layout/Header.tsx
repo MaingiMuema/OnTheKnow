@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -22,12 +23,13 @@ export const Header = () => {
     return () => window.removeEventListener('scroll', updateScroll);
   }, []);
 
-  const menuItems = [
+{/*  const menuItems = [
     { name: 'Home', href: '/' },
     { name: 'Features', href: '#features' },
     { name: 'About', href: '#about' },
     { name: 'Contact', href: '#contact' },
   ];
+  */}
 
   return (
     <motion.header
@@ -52,7 +54,7 @@ export const Header = () => {
             className="hidden md:block"
           >
             <div className="flex items-center space-x-8">
-              {menuItems.map((item, i) => (
+            {/*  {menuItems.map((item, i) => (
                 <motion.div
                   key={item.name}
                   whileHover={{ scale: 1.05 }}
@@ -65,13 +67,14 @@ export const Header = () => {
                     {item.name}
                   </Link>
                 </motion.div>
-              ))}
+              ))} 
+              */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors text-white"
               >
-                Get Started
+              Personalized Learning
               </motion.button>
             </div>
           </motion.div>
