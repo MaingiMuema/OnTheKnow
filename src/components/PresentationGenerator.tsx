@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { generatePresentation, type PresentationResponse, type SlideContent } from '@/services/presentation';
+import { generatePresentation } from '@/services/presentation';
+import { type PresentationData, type Slide } from '@/components/PresentationTemplate';
 import { Upload } from 'lucide-react';
 
 export const PresentationGenerator = () => {
   const [prompt, setPrompt] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [presentation, setPresentation] = useState<PresentationResponse | null>(null);
+  const [presentation, setPresentation] = useState<PresentationData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -42,7 +43,7 @@ export const PresentationGenerator = () => {
     }
   };
 
-  const renderSlide = (slide: SlideContent) => {
+  const renderSlide = (slide: Slide) => {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg shadow-xl">
         {slide.type === 'title' && (

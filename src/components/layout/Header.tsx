@@ -74,7 +74,7 @@ export const Header = () => {
                 whileTap={{ scale: 0.95 }}
                 className="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors text-white"
               >
-              Personalized Learning
+              Presentations
               </motion.button>
             </div>
           </motion.div>

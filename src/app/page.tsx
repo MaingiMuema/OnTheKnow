@@ -3,9 +3,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { motion, useScroll, useTransform, useInView } from 'framer-motion';
+import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion';
 import { Upload } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
+import { PresentationTemplate, type PresentationData } from '@/components/PresentationTemplate';
+import { generatePresentation, downloadPresentation } from '@/services/presentation';
+import { type FileContent } from '@/types/files';
 
 const strategicPositions = [
   { x: '10%', y: '20%' },  // Top left
@@ -16,6 +19,12 @@ const strategicPositions = [
 ];
 
 export default function Home() {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [generationStatus, setGenerationStatus] = useState('');
+  const [presentationData, setPresentationData] = useState<PresentationData | null>(null);
   const { scrollY } = useScroll();
   const scale = useTransform(scrollY, [0, 300], [1, 0.8]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
@@ -26,11 +35,44 @@ export default function Home() {
   const featuresRef = useRef(null);
   const isInView = useInView(featuresRef, { once: true });
 
-  useEffect(() => {
-    const handleScroll = () => {};
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const handleGenerate = async () => {
+    if (!prompt && !file) return;
+    
+    setIsGenerating(true);
+    setGenerationStatus('Starting generation...');
+    
+    try {
+      let input: string | FileContent;
+      
+      if (file) {
+        const content = await file.text();
+        input = { content, type: file.type };
+      } else {
+        input = prompt;
+      }
+
+      const data = await generatePresentation(input, (status) => {
+        setGenerationStatus(status);
+      });
+      
+      setPresentationData(data);
+      setCurrentSlide(0);
+    } catch (error) {
+      console.error('Error generating presentation:', error);
+      setGenerationStatus('Error generating presentation. Please try again.');
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!presentationData) return;
+    await downloadPresentation(presentationData);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-purple-900 text-white overflow-hidden">
@@ -39,7 +81,7 @@ export default function Home() {
       {/* Hero Section */}
       <motion.div 
         style={{ scale, opacity, y }}
-        className="relative h-screen flex items-center justify-center"
+        className="relative min-h-screen flex items-center justify-center"
       >
         <div className="absolute inset-0 overflow-hidden">
           <motion.div 
@@ -56,55 +98,104 @@ export default function Home() {
           />
         </div>
 
-        <div className="relative z-10 text-center space-y-8 px-4 max-w-3xl mx-auto">
-          <motion.h1 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ 
-              duration: 0.8,
-              type: "spring",
-              stiffness: 100
-            }}
-            className="text-6xl md:text-8xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600"
-          >
-            OnTheKnow
-          </motion.h1>
-          <motion.p 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.8 }}
-            className="text-xl md:text-2xl text-gray-300"
-          >
-            Transform your ideas into stunning presentations with AI
-          </motion.p>
-          
+        <div className={`relative z-10 w-full transition-all duration-500 ${isGenerating ? 'px-8 flex gap-8' : 'px-4 max-w-3xl mx-auto'}`}>
           <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="space-y-4"
+            layout
+            className={`space-y-8 ${isGenerating ? 'w-1/2 text-left' : 'text-center'}`}
           >
-            <textarea
-              placeholder="Describe your presentation or paste your content here..."
-              className="w-full h-32 p-4 bg-gray-800/50 backdrop-blur rounded-xl border border-purple-500/30 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 outline-none text-white placeholder-gray-400 transition-all resize-none"
-            />
+            <motion.h1 
+              layout
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ 
+                duration: 0.8,
+                type: "spring",
+                stiffness: 100
+              }}
+              className={`font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 ${isGenerating ? 'text-4xl md:text-5xl' : 'text-6xl md:text-8xl'}`}
+            >
+              OnTheKnow
+            </motion.h1>
+            <motion.p 
+              layout
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4, duration: 0.8 }}
+              className="text-xl md:text-2xl text-gray-300"
+            >
+              Transform your ideas into stunning presentations with AI
+            </motion.p>
             
-            <div className="flex gap-4 justify-center">
-              <label className="px-6 py-3 rounded-xl border border-purple-500 hover:bg-purple-600/20 transition-colors text-white font-semibold cursor-pointer group flex items-center gap-2">
-                <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                Upload Document
-                <input type="file" className="hidden" accept=".doc,.docx,.pdf,.txt" />
-              </label>
+            <motion.div 
+              layout
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="space-y-4"
+            >
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe your presentation or paste your content here..."
+                className="w-full h-32 p-4 bg-gray-800/50 backdrop-blur rounded-xl border border-purple-500/30 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 outline-none text-white placeholder-gray-400 transition-all resize-none"
+              />
               
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition-colors text-white font-semibold flex-1"
-              >
-                Generate Presentation
-              </motion.button>
-            </div>
+              <div className="flex gap-4 justify-center">
+                <label className="px-6 py-3 rounded-xl border border-purple-500 hover:bg-purple-600/20 transition-colors text-white font-semibold cursor-pointer group flex items-center gap-2">
+                  <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  Upload Document
+                  <input 
+                    type="file" 
+                    onChange={handleFileChange}
+                    className="hidden" 
+                    accept=".doc,.docx,.pdf,.txt" 
+                  />
+                </label>
+                
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleGenerate}
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition-colors text-white font-semibold flex-1"
+                >
+                  Generate Presentation
+                </motion.button>
+              </div>
+            </motion.div>
           </motion.div>
+
+          <AnimatePresence>
+            {isGenerating && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="w-1/2 bg-gray-900/50 backdrop-blur rounded-2xl p-6 border border-purple-500/20 h-[600px]"
+              >
+                {presentationData ? (
+                  <PresentationTemplate
+                    data={presentationData}
+                    currentSlide={currentSlide}
+                    onNext={() => setCurrentSlide(prev => Math.min(presentationData.slides.length - 1, prev + 1))}
+                    onPrev={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
+                    onDownload={handleDownload}
+                  />
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center">
+                    <div className="space-y-4 text-center">
+                      <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <h2 className="text-2xl font-semibold">
+                        {generationStatus}
+                      </h2>
+                      <p className="text-gray-400">
+                        This may take a few moments...
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <motion.div 
