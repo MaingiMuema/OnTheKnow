@@ -25,29 +25,11 @@ export default function Home() {
   const bgRotate = useTransform(scrollY, [0, 300], [0, 6]);
   const featuresRef = useRef(null);
   const isInView = useInView(featuresRef, { once: true });
-  const refreshInterval = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     const handleScroll = () => {};
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  useEffect(() => {
-    const loadTrends = async () => {
-    };
-
-    // Initial load
-    loadTrends();
-
-    // Set up periodic refresh every minute
-    refreshInterval.current = setInterval(loadTrends, 60000);
-
-    return () => {
-      if (refreshInterval.current) {
-        clearInterval(refreshInterval.current);
-      }
-    };
   }, []);
 
   return (
