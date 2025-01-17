@@ -22,6 +22,6 @@ const config: Config = {
     animate
   ],
   darkMode: "media",
-};
+} as const;
 
-export default config;
+module.exports = config;
