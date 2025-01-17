@@ -98,10 +98,11 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
       font-family: 'Inter', sans-serif;
       background: linear-gradient(135deg, ${theme.background}dd, ${theme.background});
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
       gap: clamp(1rem, 3vw, 2rem);
       position: relative;
       overflow: hidden;
+      min-height: 100vh;
     }
     .slide-content::before {
       content: '';
@@ -119,6 +120,7 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
       align-items: center;
       gap: clamp(0.75rem, 2vw, 1.5rem);
       z-index: 1;
+      flex-shrink: 0;
     }
     .slide-icon {
       width: clamp(32px, 6vw, 48px);
@@ -136,6 +138,10 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
       -webkit-text-fill-color: transparent;
       line-height: 1.2;
       animation: slideIn 0.5s ease-out;
+      max-width: 100%;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      hyphens: auto;
     }
     .slide-body {
       position: relative;
@@ -145,12 +151,30 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
       height: 100%;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       animation: fadeIn 0.5s ease-out 0.2s both;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: ${theme.accent}40 transparent;
+      padding-right: 0.5rem;
+    }
+    .slide-body::-webkit-scrollbar {
+      width: 6px;
+    }
+    .slide-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .slide-body::-webkit-scrollbar-thumb {
+      background-color: ${theme.accent}40;
+      border-radius: 3px;
+    }
+    /* Auto-scaling content */
+    .auto-scale {
+      transform-origin: top left;
+      transition: transform 0.3s ease;
     }
   `;
 
-  // Additional styles based on slide type
   const typeStyles = {
     bullets: `
       .bullet-list {
@@ -158,13 +182,13 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
         padding: 0;
         margin: 0;
         display: grid;
-        gap: clamp(0.75rem, 2vw, 1rem);
+        gap: clamp(0.5rem, 1.5vw, 1rem);
         width: 100%;
         max-width: 1200px;
       }
       .bullet-item {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: clamp(0.5rem, 1.5vw, 1rem);
         opacity: 0;
         transform: translateY(20px);
@@ -173,6 +197,7 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
         background: ${theme.primary}10;
         border-radius: 0.5rem;
         backdrop-filter: blur(4px);
+        min-height: 0;
       }
       .bullet-item:nth-child(1) { animation-delay: 0.1s; }
       .bullet-item:nth-child(2) { animation-delay: 0.2s; }
@@ -195,7 +220,11 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
       }
       .bullet-item span {
         flex: 1;
-        font-size: clamp(0.875rem, 2.5vw, 1.125rem);
+        font-size: clamp(0.875rem, 2vw, 1.125rem);
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        hyphens: auto;
+        min-width: 0;
       }
     `,
     image: `
@@ -203,8 +232,10 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: clamp(1rem, 3vw, 2rem);
-        align-items: center;
+        align-items: start;
         height: 100%;
+        min-height: 0;
+        overflow: hidden;
       }
       @media (max-width: 768px) {
         .image-slide {
@@ -214,17 +245,24 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
       }
       .image-container {
         width: 100%;
-        height: clamp(200px, 50vh, 400px);
+        aspect-ratio: 16/9;
         border-radius: 1rem;
         overflow: hidden;
         box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
         animation: scaleIn 0.5s ease-out;
+      }
+      .image-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
       .image-content {
         display: flex;
         flex-direction: column;
         gap: clamp(0.75rem, 2vw, 1.5rem);
         animation: slideIn 0.5s ease-out 0.2s both;
+        overflow-y: auto;
+        padding-right: 0.5rem;
       }
       .caption {
         font-size: clamp(0.75rem, 2vw, 0.875rem);
@@ -240,6 +278,9 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
         font-size: clamp(1rem, 3vw, 1.5rem);
         color: ${theme.text}cc;
         margin-top: clamp(0.5rem, 2vw, 1rem);
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        hyphens: auto;
       }
     `,
   };
@@ -299,6 +340,38 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
   let html = '';
   let additionalStyles = '';
   
+  // Add content scaling script
+  const contentScalingScript = `
+    <script>
+      (function() {
+        const content = document.querySelector('.slide-body');
+        const container = document.querySelector('.slide-content');
+        
+        function adjustContent() {
+          if (!content || !container) return;
+          
+          // Reset any previous scaling
+          content.style.transform = 'scale(1)';
+          
+          const contentHeight = content.scrollHeight;
+          const containerHeight = container.clientHeight - container.querySelector('.slide-header').offsetHeight - 32; // Account for padding
+          
+          if (contentHeight > containerHeight) {
+            const scale = containerHeight / contentHeight;
+            content.style.transform = \`scale(\${Math.max(scale, 0.7)})\`;
+          }
+        }
+        
+        // Run on load and resize
+        window.addEventListener('load', adjustContent);
+        window.addEventListener('resize', adjustContent);
+        
+        // Run immediately
+        adjustContent();
+      })();
+    </script>
+  `;
+  
   if (slide.type === 'title') {
     additionalStyles = typeStyles.title;
     html = `
@@ -312,6 +385,7 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
           ${!slide.subtitle && slide.content ? `<p>${slide.content}</p>` : ''}
         </div>
       </div>
+      ${contentScalingScript}
     `;
   } else if (slide.type === 'bullets') {
     additionalStyles = typeStyles.bullets;
@@ -334,6 +408,7 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
           </ul>
         </div>
       </div>
+      ${contentScalingScript}
     `;
   } else if (slide.type === 'image') {
     additionalStyles = typeStyles.image;
@@ -353,6 +428,7 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
           </div>
         </div>
       </div>
+      ${contentScalingScript}
     `;
   } else {
     html = `
@@ -365,6 +441,7 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
           ${slide.content ? `<p>${slide.content}</p>` : ''}
         </div>
       </div>
+      ${contentScalingScript}
     `;
   }
 
