@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { fetchWithRetries } from '@/utils/api';
+
+export const maxDuration = 300; // Set max duration to 300 seconds (5 minutes)
 
 export async function POST(req: Request) {
   try {
@@ -13,13 +16,16 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log('Making API request to DeepSeek...');
 
-    const response = await fetch('https://api.hyperbolic.xyz/v1/chat/completions', {
+    const response = await fetchWithRetries('https://api.hyperbolic.xyz/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AI_API_KEY}`,
       },
       body: JSON.stringify(body),
+      maxRetries: 3,
+      timeout: 60000, // 60 seconds timeout
+      retryDelay: 2000, // 2 seconds delay between retries
     });
 
     if (!response.ok) {
@@ -40,8 +46,12 @@ export async function POST(req: Request) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('AI API error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to process request';
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to process request' },
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+      },
       { status: 500 }
     );
   }
