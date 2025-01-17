@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { TrendResponse, generateTrend } from './ai';
 
 interface CachedTrend extends TrendResponse {

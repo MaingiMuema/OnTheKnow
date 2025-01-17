@@ -190,7 +190,7 @@ export default function Home() {
                 {presentationData ? (
                   <div className="h-full overflow-y-auto pb-16 custom-scrollbar">
                     <PresentationTemplate
-                      data={presentationData}
+                      presentation={presentationData}
                       currentSlide={currentSlide}
                       onSlideChange={handleSlideChange}
                       onDownload={handleDownload}

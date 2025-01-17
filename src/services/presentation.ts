@@ -6,27 +6,200 @@ const API_URL = 'https://api.hyperbolic.xyz/v1/chat/completions';
 const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY;
 const POLLINATIONS_API = 'https://image.pollinations.ai/prompt/';
 
-const generateImageUrl = (prompt: string) => {
+const generateImageUrl = async (prompt: string): Promise<string> => {
   return `${POLLINATIONS_API}${encodeURIComponent(prompt)}`;
 };
 
-const generateSlideImagePrompt = (slide: Partial<Slide>) => {
+const generateSlideImagePrompt = (slide: Partial<Slide>): string => {
   const context = `Create a professional, modern business presentation visual for: ${slide.title}. ${slide.content}`;
   return context;
 };
 
-const parseAIResponse = (response: string): PresentationData => {
+const generateSlideHTML = (content: any, theme: any) => {
+  const baseStyles = `
+    .slide-content {
+      height: 100%;
+      padding: 2rem;
+      color: ${theme.text};
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, ${theme.primary} 0%, ${theme.accent} 100%);
+    }
+    .slide-title {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(to right, ${theme.text}, ${theme.secondary});
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .slide-body {
+      font-size: 1.25rem;
+      line-height: 1.6;
+    }
+    .bullet-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .bullet-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1rem;
+      opacity: 0;
+      animation: fadeIn 0.5s ease forwards;
+    }
+    .bullet-number {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background: ${theme.accent};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 1rem;
+      flex-shrink: 0;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+  `;
+
+  let slideHTML = '';
+  let slideCSS = baseStyles;
+
+  if (content.type === 'title') {
+    slideHTML = `
+      <div class="slide-content flex flex-col items-center justify-center text-center">
+        <h1 class="slide-title text-5xl mb-8">${content.title}</h1>
+        <p class="slide-body text-2xl">${content.subtitle || ''}</p>
+      </div>
+    `;
+  } else if (content.type === 'bullets') {
+    const bullets = content.bullets.map((bullet: string, index: number) => `
+      <li class="bullet-item" style="animation-delay: ${index * 0.1}s">
+        <span class="bullet-number">${String(index + 1).padStart(2, '0')}</span>
+        <span>${bullet}</span>
+      </li>
+    `).join('');
+
+    slideHTML = `
+      <div class="slide-content">
+        <h2 class="slide-title">${content.title}</h2>
+        <ul class="bullet-list">
+          ${bullets}
+        </ul>
+      </div>
+    `;
+  } else if (content.type === 'image') {
+    slideCSS += `
+      .image-container {
+        position: relative;
+        width: 100%;
+        height: 60%;
+        border-radius: 1rem;
+        overflow: hidden;
+        margin: 1rem 0;
+      }
+      .slide-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    `;
+
+    slideHTML = `
+      <div class="slide-content">
+        <h2 class="slide-title">${content.title}</h2>
+        <div class="image-container">
+          <img src="${content.imageUrl}" alt="${content.title}" class="slide-image">
+        </div>
+        ${content.caption ? `<p class="slide-body text-center mt-4">${content.caption}</p>` : ''}
+      </div>
+    `;
+  } else {
+    slideHTML = `
+      <div class="slide-content">
+        <h2 class="slide-title">${content.title}</h2>
+        <div class="slide-body">
+          ${content.content.split('\n').map((p: string) => `<p class="mb-4">${p}</p>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  return { html: slideHTML.trim(), css: slideCSS.trim() };
+};
+
+const formatContent = (slide: any): Partial<Slide> => {
+  const formattedSlide = { ...slide };
+
+  if (slide.content && typeof slide.content === 'string') {
+    // Convert bullet point content into arrays
+    if (slide.content.includes('•')) {
+      formattedSlide.bullets = slide.content
+        .split('\n')
+        .map((line: string) => line.trim())
+        .filter((line: string) => line.startsWith('•'))
+        .map((line: string) => line.replace('•', '').trim());
+      
+      // If it's a bullets type slide, ensure it's marked as such
+      if (formattedSlide.bullets.length > 0 && !slide.type) {
+        formattedSlide.type = 'bullets';
+      }
+    }
+  }
+
+  // Ensure type is set
+  if (!formattedSlide.type) {
+    formattedSlide.type = 'content';
+  }
+
+  return formattedSlide;
+};
+
+export const parseAIResponse = async (response: string): Promise<PresentationData> => {
   try {
-    // Remove markdown code block if present
-    const jsonStr = response.replace(/^```json\n|\n```$/g, '').trim();
-    const data = JSON.parse(jsonStr);
+    // Remove markdown code block markers if present
+    const cleanJson = response.replace(/^```json\n|\n```$/g, '').trim();
+    console.log('🔍 Cleaned JSON:', cleanJson);
+    
+    const parsed = JSON.parse(cleanJson);
+    const slides = parsed.slides.map(async (slide: any, index: number) => {
+      // Format the content and convert bullet points
+      const formattedSlide = formatContent(slide);
+      
+      if (formattedSlide.type === 'image' && !formattedSlide.imageUrl) {
+        const imagePrompt = generateSlideImagePrompt(formattedSlide);
+        formattedSlide.imageUrl = await generateImageUrl(imagePrompt);
+      }
+
+      const { html, css } = generateSlideHTML({
+        ...formattedSlide,
+        id: `slide-${index}`,
+      } as Slide, parsed.theme || {
+        primary: '#9333EA',
+        secondary: '#EC4899',
+        accent: '#A855F7',
+        background: '#111827',
+        text: '#FFFFFF',
+      });
+
+      return {
+        ...formattedSlide,
+        id: `slide-${index}`,
+        html,
+        css,
+        backgroundColor: formattedSlide.backgroundColor,
+        type: formattedSlide.type || 'content',
+        title: formattedSlide.title || '',
+      } as Slide;
+    });
+
     return {
       id: Date.now().toString(),
-      title: data.title,
-      slides: data.slides.map((slide: any, index: number) => ({
-        id: `slide-${index}`,
-        ...slide,
-      })),
+      title: parsed.title,
+      slides: await Promise.all(slides),
       theme: {
         primary: '#9333EA', // purple-600
         secondary: '#EC4899', // pink-600
@@ -37,7 +210,8 @@ const parseAIResponse = (response: string): PresentationData => {
     };
   } catch (error) {
     console.error('Error parsing AI response:', error);
-    throw new Error('Failed to parse presentation data');
+    console.error('Raw response:', response);
+    throw new Error('Failed to parse AI response');
   }
 };
 
@@ -113,7 +287,7 @@ export const generatePresentation = async (
     const data = await response.json();
     console.log('📦 Raw API response:', data);
     
-    const presentationData = parseAIResponse(data.choices[0].message.content);
+    const presentationData = await parseAIResponse(data.choices[0].message.content);
     console.log('🎨 Parsed presentation data:', presentationData);
 
     onProgress?.('Generating visuals...');
@@ -123,7 +297,7 @@ export const generatePresentation = async (
       presentationData.slides.map(async (slide) => {
         if (slide.type === 'image') {
           const imagePrompt = generateSlideImagePrompt(slide);
-          slide.imageUrl = generateImageUrl(imagePrompt);
+          slide.imageUrl = await generateImageUrl(imagePrompt);
         }
         return slide;
       })
