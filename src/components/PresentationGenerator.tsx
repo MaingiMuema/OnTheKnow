@@ -67,9 +67,11 @@ export const PresentationGenerator = () => {
         {slide.type === 'bullets' && (
           <>
             <h2 className="text-2xl font-semibold text-white mb-4">{slide.title}</h2>
-            <ul className="list-disc text-gray-300 space-y-2">
-              {slide.bullets?.map((bullet, index) => (
-                <li key={index}>{bullet}</li>
+            <ul className="list-disc text-gray-300 space-y-2 pl-5">
+              {slide.bullets?.map((bullet: string, index: number) => (
+                <li key={index} className="text-lg">
+                  {bullet}
+                </li>
               ))}
             </ul>
           </>

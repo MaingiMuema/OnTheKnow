@@ -30,6 +30,7 @@ const parseAIResponse = (response: string): PresentationData => {
       theme: {
         primary: '#9333EA', // purple-600
         secondary: '#EC4899', // pink-600
+        accent: '#A855F7', // purple-500
         background: '#111827', // gray-900
         text: '#FFFFFF',
       },
@@ -46,6 +47,7 @@ export const generatePresentation = async (
 ): Promise<PresentationData> => {
   try {
     onProgress?.('Generating presentation structure...');
+    console.log('🎯 Making API request with input:', typeof input === 'string' ? 'text prompt' : 'file content');
     
     const prompt = typeof input === 'string' 
       ? input 
@@ -62,40 +64,57 @@ export const generatePresentation = async (
         messages: [
           {
             role: 'system',
-            content: `You are a professional presentation creator. Create a well-structured presentation with the following rules:
-            1. Each slide should be focused and concise
-            2. Use professional business language
-            3. Format the response as a JSON object with:
-               - title: string
-               - slides: array of slides, each with:
-                 - type: 'title' | 'content' | 'image' | 'bullets'
-                 - title: string
-                 - content?: string
-                 - bullets?: string[]
-                 - layout?: 'left' | 'right' | 'center'
-            4. Include 5-10 slides depending on content
-            5. Vary slide types for engagement
-            6. First slide should be type 'title'
-            7. Use descriptive titles and clear content`
+            content: `You are a professional presentation creator specializing in creating engaging, visually appealing presentations. Create a comprehensive presentation following these rules:
+
+              1. Content Requirements:
+                - Create at least 8-12 slides for comprehensive coverage
+                - Each slide must be detailed and informative
+                - Include relevant statistics, facts, or data points
+                - Add engaging bullet points and key takeaways
+                - Suggest relevant image descriptions for each slide
+
+              2. Slide Structure:
+                - Start with an attention-grabbing title slide
+                - Include an agenda/overview slide
+                - Main content slides with clear headings
+                - End with a strong conclusion/summary slide
+
+              3. Format the response as a JSON object with:
+                - title: string (make it catchy and professional)
+                - slides: array of slides, each with:
+                  - type: 'title' | 'content' | 'image' | 'bullets'
+                  - title: string (clear and descriptive)
+                  - content: string (detailed content with bullet points using • for bullets)
+                  - imagePrompt?: string (detailed description for slide visual)
+
+              4. Visual Guidelines:
+                - Each slide should have a suggested image prompt
+                - Image prompts should be detailed and specific
+                - Ensure visual continuity throughout the presentation
+
+              Make the presentation engaging, professional, and visually appealing.`
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        max_tokens: 2048,
-        temperature: 0.7,
-        top_p: 0.9,
-        stream: false
+        temperature: 0.8,
+        max_tokens: 3000
       }),
     });
 
+    console.log('📡 API Response status:', response.status);
     if (!response.ok) {
+      console.error('🔥 API Error:', response.status, response.statusText);
       throw new Error('Failed to generate presentation structure');
     }
 
     const data = await response.json();
+    console.log('📦 Raw API response:', data);
+    
     const presentationData = parseAIResponse(data.choices[0].message.content);
+    console.log('🎨 Parsed presentation data:', presentationData);
 
     onProgress?.('Generating visuals...');
 
@@ -117,7 +136,7 @@ export const generatePresentation = async (
       slides: slidesWithImages,
     };
   } catch (error) {
-    console.error('Error generating presentation:', error);
+    console.error('💥 Error in generatePresentation:', error);
     throw error;
   }
 };

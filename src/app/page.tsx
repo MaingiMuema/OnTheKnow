@@ -30,6 +30,7 @@ export default function Home() {
   const handleGenerate = async () => {
     if (!prompt && !file) return;
     
+    console.log('🚀 Starting presentation generation...', { prompt, file });
     setIsGenerating(true);
     setGenerationStatus('Starting generation...');
     
@@ -38,19 +39,22 @@ export default function Home() {
       
       if (file) {
         const content = await file.text();
+        console.log('📄 File content loaded:', { type: file.type, contentLength: content.length });
         input = { content, type: file.type };
       } else {
         input = prompt;
       }
 
       const data = await generatePresentation(input, (status) => {
+        console.log('📊 Generation status:', status);
         setGenerationStatus(status);
       });
       
+      console.log('✅ Presentation generated:', data);
       setPresentationData(data);
       setCurrentSlide(0);
     } catch (error) {
-      console.error('Error generating presentation:', error);
+      console.error('❌ Error generating presentation:', error);
       setGenerationStatus('Error generating presentation. Please try again.');
     }
   };
@@ -64,6 +68,25 @@ export default function Home() {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!presentationData) return;
+      
+      if (e.key === 'ArrowLeft') {
+        setCurrentSlide(prev => Math.max(0, prev - 1));
+      } else if (e.key === 'ArrowRight') {
+        setCurrentSlide(prev => Math.min(presentationData.slides.length - 1, prev + 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [presentationData]);
+
+  const handleSlideChange = (slideIndex: number) => {
+    setCurrentSlide(slideIndex);
   };
 
   return (
@@ -162,16 +185,17 @@ export default function Home() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="w-1/2 bg-gray-900/50 backdrop-blur rounded-2xl p-6 border border-purple-500/20 h-[600px]"
+                className="w-1/2 bg-gray-900/50 backdrop-blur rounded-2xl p-6 border mt-20 border-purple-500/20 h-[600px] relative"
               >
                 {presentationData ? (
-                  <PresentationTemplate
-                    data={presentationData}
-                    currentSlide={currentSlide}
-                    onNext={() => setCurrentSlide(prev => Math.min(presentationData.slides.length - 1, prev + 1))}
-                    onPrev={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
-                    onDownload={handleDownload}
-                  />
+                  <div className="h-full overflow-y-auto pb-16 custom-scrollbar">
+                    <PresentationTemplate
+                      data={presentationData}
+                      currentSlide={currentSlide}
+                      onSlideChange={handleSlideChange}
+                      onDownload={handleDownload}
+                    />
+                  </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center">
                     <div className="space-y-4 text-center">
