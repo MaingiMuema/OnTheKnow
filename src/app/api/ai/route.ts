@@ -1,45 +1,41 @@
 import { NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+export const maxDuration = 300; // 5 minutes
+
 export async function POST(req: Request) {
   try {
     if (!process.env.NEXT_PUBLIC_AI_API_KEY) {
-      console.error('API key not found in environment variables');
-      return NextResponse.json(
-        { error: 'API key not configured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
     const body = await req.json();
-    console.log('Making API request to DeepSeek...');
+    console.log('Received request body:', body);
 
-    const response = await fetch('https://api.hyperbolic.xyz/v1/chat/completions', {
+    const aiResponse = await fetch('https://api.hyperbolic.xyz/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AI_API_KEY}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: 'deepseek-ai/DeepSeek-V3',
+        messages: body.messages,
+        temperature: 0.7,
+        max_tokens: 2000
+      }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('DeepSeek API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-      
-      return NextResponse.json(
-        { error: `API responded with status ${response.status}: ${errorText}` },
-        { status: response.status }
-      );
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('API error:', errorText);
+      return NextResponse.json({ error: `API error: ${errorText}` }, { status: aiResponse.status });
     }
 
-    const data = await response.json();
+    const data = await aiResponse.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('AI API error:', error);
+    console.error('Error in handler:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to process request' },
       { status: 500 }

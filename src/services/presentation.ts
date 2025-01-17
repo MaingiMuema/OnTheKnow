@@ -533,8 +533,8 @@ export const generatePresentation = async (
   onProgress?: (status: string) => void
 ): Promise<PresentationData> => {
   try {
-    onProgress?.('Generating presentation structure...');
-    console.log('🎯 Generating presentation for:', typeof input === 'string' ? input : 'file content');
+    console.log('🚀 Starting presentation generation...', { prompt: input, file: null });
+    onProgress?.('Starting generation...');
     
     const prompt = typeof input === 'string' 
       ? input 
@@ -546,15 +546,14 @@ export const generatePresentation = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'deepseek-ai/DeepSeek-V3',
         messages: [
           {
             role: 'system',
             content: `You are an expert presentation creator. Create a professional presentation based on the given topic.
             The presentation should:
             - Have a clear structure with introduction, body, and conclusion
-            - Include relevant examples and data points
-            - Use concise and impactful language
+            - Include relevant examples and illustrations
+            - Be engaging and visually appealing
             - Have 8-12 slides
             
             Return a JSON object in this exact format:
@@ -574,33 +573,27 @@ export const generatePresentation = async (
             role: 'user',
             content: prompt
           }
-        ],
-        temperature: 0.7,
-      }),
+        ]
+      })
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error('API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData
-      });
-      throw new Error(errorData.error || 'Failed to generate presentation');
+      const error = await response.text();
+      throw new Error(error);
     }
 
     const data = await response.json();
-    console.log('🎨 Raw response:', data.choices?.[0]?.message?.content || 'No content in response');
-    
+    console.log('Received AI response:', data);
+
     if (!data.choices?.[0]?.message?.content) {
       throw new Error('Invalid response format from AI API');
     }
 
+    onProgress?.('Processing response...');
     const presentationData = await parseAIResponse(data.choices[0].message.content);
-    console.log('🎨 Parsed presentation data:', presentationData);
+    console.log('Parsed presentation data:', presentationData);
 
     onProgress?.('Generating visuals...');
-
     // Generate images for slides that need them
     const slidesWithImages = await Promise.all(
       presentationData.slides.map(async (slide) => {
