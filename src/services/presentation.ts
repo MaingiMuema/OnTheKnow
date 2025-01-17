@@ -580,12 +580,22 @@ export const generatePresentation = async (
     });
 
     if (!response.ok) {
-      throw new Error('Failed to generate presentation');
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      throw new Error(errorData.error || 'Failed to generate presentation');
     }
 
     const data = await response.json();
-    console.log('🎨 Raw response:', data.choices[0].message.content);
+    console.log('🎨 Raw response:', data.choices?.[0]?.message?.content || 'No content in response');
     
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response format from AI API');
+    }
+
     const presentationData = await parseAIResponse(data.choices[0].message.content);
     console.log('🎨 Parsed presentation data:', presentationData);
 
@@ -595,8 +605,14 @@ export const generatePresentation = async (
     const slidesWithImages = await Promise.all(
       presentationData.slides.map(async (slide) => {
         if (slide.type === 'image') {
-          const imagePrompt = generateSlideImagePrompt(slide);
-          slide.imageUrl = await generateImageUrl(imagePrompt);
+          try {
+            const imagePrompt = generateSlideImagePrompt(slide);
+            slide.imageUrl = await generateImageUrl(imagePrompt);
+          } catch (error) {
+            console.error('Error generating image for slide:', error);
+            // Use a fallback image URL
+            slide.imageUrl = 'https://image.pollinations.ai/prompt/fallback%20presentation%20slide%20background';
+          }
         }
         return slide;
       })
