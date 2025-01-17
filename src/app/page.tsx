@@ -129,7 +129,7 @@ export default function Home() {
               }}
               className={`font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 ${isGenerating ? 'text-4xl md:text-5xl' : 'text-6xl md:text-8xl'}`}
             >
-              OnTheKnow
+              FlashSlides
             </motion.h1>
             <motion.p 
               layout

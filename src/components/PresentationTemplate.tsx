@@ -13,10 +13,18 @@ export interface Slide {
   html: string;
   css: string;
   imageUrl?: string;
+  iconUrl?: string;
   bullets?: string[];
   subtitle?: string;
   caption?: string;
   backgroundColor?: string;
+  theme?: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    text: string;
+  };
 }
 
 export interface PresentationData {
@@ -73,111 +81,91 @@ export const PresentationTemplate: React.FC<PresentationTemplateProps> = ({
   }, [currentSlide]);
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
-      <style jsx global>{`
-        @media (max-width: 640px) {
-          .slide-content {
-            padding: 1rem !important;
-          }
-          .slide-title {
-            font-size: 1.75rem !important;
-          }
-          .slide-body {
-            font-size: 1rem !important;
-          }
-          .bullet-item {
-            margin-bottom: 0.5rem !important;
-          }
-        }
-        @media (min-width: 641px) and (max-width: 1024px) {
-          .slide-content {
-            padding: 1.5rem !important;
-          }
-          .slide-title {
-            font-size: 2rem !important;
-          }
-          .slide-body {
-            font-size: 1.125rem !important;
-          }
-        }
-        .image-container {
-          position: relative;
-          width: 100%;
-          max-height: 60vh;
-          margin: 1rem 0;
-          border-radius: 0.5rem;
-          overflow: hidden;
-        }
-        .slide-image {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-          background: rgba(0, 0, 0, 0.1);
-        }
-        @media (orientation: landscape) {
-          .image-container {
-            max-height: 50vh;
-          }
-        }
-      `}</style>
-
-      <div className="absolute top-4 right-4 space-x-4">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-50">
+      <div className="absolute top-4 right-4 flex items-center gap-4">
         {onDownload && (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={onDownload}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg shadow-purple-500/20"
           >
             Download
-          </button>
+          </motion.button>
         )}
         {onClose && (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={onClose}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all shadow-lg shadow-gray-500/20"
           >
             Close
-          </button>
+          </motion.button>
         )}
       </div>
 
-      <button
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={prevSlide}
         disabled={currentSlide === 0}
-        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-colors"
+        className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-all backdrop-blur-sm"
       >
         <ChevronLeft className="w-6 h-6" />
-      </button>
+      </motion.button>
 
-      <div className="w-full max-w-6xl aspect-[16/9] relative overflow-hidden rounded-lg">
-        <AnimatePresence mode="wait">
+      <div className="w-full max-w-6xl aspect-[16/9] relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-white/10 rounded-full overflow-hidden">
           <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -100 }}
+            className="h-full bg-gradient-to-r from-purple-500 to-purple-600"
+            initial={{ width: `${(currentSlide / (presentation.slides.length - 1)) * 100}%` }}
+            animate={{ width: `${(currentSlide / (presentation.slides.length - 1)) * 100}%` }}
             transition={{ duration: 0.3 }}
-            className="w-full h-full"
-          >
-            <style dangerouslySetInnerHTML={{ __html: presentation.slides[currentSlide].css }} />
-            <div
-              dangerouslySetInnerHTML={{ __html: presentation.slides[currentSlide].html }}
-              className="w-full h-full"
-            />
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 text-white rounded-full text-sm">
-          {currentSlide + 1} / {presentation.slides.length}
+          />
         </div>
+
+        <div className="mt-4 w-full h-full relative overflow-hidden rounded-2xl shadow-2xl">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ 
+                duration: 0.4,
+                ease: [0.4, 0, 0.2, 1]
+              }}
+              className="w-full h-full"
+            >
+              <style dangerouslySetInnerHTML={{ __html: presentation.slides[currentSlide].css }} />
+              <div
+                dangerouslySetInnerHTML={{ __html: presentation.slides[currentSlide].html }}
+                className="w-full h-full"
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2 bg-black/50 backdrop-blur-md text-white rounded-full text-sm font-medium shadow-lg"
+        >
+          {currentSlide + 1} / {presentation.slides.length}
+        </motion.div>
       </div>
 
-      <button
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={nextSlide}
         disabled={currentSlide === presentation.slides.length - 1}
-        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-colors"
+        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/20 transition-all backdrop-blur-sm"
       >
         <ChevronRight className="w-6 h-6" />
-      </button>
+      </motion.button>
     </div>
   );
 };
