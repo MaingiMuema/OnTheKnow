@@ -4,22 +4,22 @@
 import { type FileContent } from '@/types/files';
 import { type PresentationData, type Slide } from '@/components/PresentationTemplate';
 
-const API_URL = 'https://api.hyperbolic.xyz/v1/chat/completions';
-const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY;
+const API_URL = '/api/ai';
 const POLLINATIONS_API = 'https://image.pollinations.ai/prompt/';
 
 const generateImageUrl = async (prompt: string): Promise<string> => {
+  // Use Pollinations API for both icons and images
   return `${POLLINATIONS_API}${encodeURIComponent(prompt)}`;
 };
 
-const generateSlideImagePrompt = (slide: Partial<Slide>): string => {
-  const context = `Create a professional, modern business presentation visual for: ${slide.title}. ${slide.content}`;
-  return context;
+const generateIconPrompt = (slide: Partial<Slide>): string => {
+  // Optimize prompt for Pollinations
+  return `minimalist simple icon ${slide.title}, flat design, vector style, single color, clean lines`;
 };
 
-const generateIconPrompt = (slide: Partial<Slide>): string => {
-  const context = `Create a minimalist, single-subject icon that represents: ${slide.title}. The icon should be simple and modern.`;
-  return context;
+const generateSlideImagePrompt = (slide: Partial<Slide>): string => {
+  // Optimize prompt for Pollinations
+  return `professional presentation visual, ${slide.title}, modern business style, high quality, 16:9 aspect ratio, clean design`;
 };
 
 const generateThemeColors = (slide: Partial<Slide>): {
@@ -452,20 +452,30 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
 };
 
 const formatContent = async (slide: any): Promise<Partial<Slide>> => {
+  // Only generate icons for specific slides
+  const shouldHaveIcon = (slide: any): boolean => {
+    const importantKeywords = ['summary', 'key', 'features', 'benefits', 'conclusion'];
+    const hasImportantKeyword = importantKeywords.some(keyword => 
+      slide.title?.toLowerCase().includes(keyword) || 
+      slide.content?.toLowerCase().includes(keyword)
+    );
+    
+    return slide.type === 'title' || 
+           hasImportantKeyword || 
+           (slide.index && slide.index % 3 === 0);
+  };
+
   const [iconUrl, imageUrl] = await Promise.all([
-    generateImageUrl(generateIconPrompt(slide)),
+    shouldHaveIcon(slide) ? generateImageUrl(generateIconPrompt(slide)) : null,
     slide.type === 'image' ? generateImageUrl(generateSlideImagePrompt(slide)) : null,
   ]);
 
-  // Split content into bullets if it contains bullet points
-  let bullets: string[] | undefined;
-  if (slide.content && slide.content.includes('•')) {
-    bullets = slide.content.split('•').filter(Boolean).map((bullet: string) => bullet.trim());
-    slide.type = 'bullets'; // Convert to bullet type if content contains bullet points
-  }
+  const bullets = slide.content?.split('\n').filter((line: string) => line.trim().startsWith('•'));
+  const hasMultipleLines = slide.content?.split('\n').length > 1;
 
   const enrichedSlide = {
     ...slide,
+    type: slide.type || (hasMultipleLines ? 'bullets' : 'content'),
     bullets,
     iconUrl,
     imageUrl,
@@ -473,15 +483,10 @@ const formatContent = async (slide: any): Promise<Partial<Slide>> => {
   };
 
   const { html, css } = await generateSlideCode(enrichedSlide);
-
-  return {
-    ...enrichedSlide,
-    html,
-    css,
-  };
+  return { ...enrichedSlide, html, css };
 };
 
-export const parseAIResponse = async (response: string): Promise<PresentationData> => {
+const parseAIResponse = async (response: string): Promise<PresentationData> => {
   try {
     // Clean the response by removing markdown formatting
     const jsonStr = response.replace(/```json\s*|\s*```/g, '').trim();
@@ -495,11 +500,12 @@ export const parseAIResponse = async (response: string): Promise<PresentationDat
     // Generate a unique ID for the presentation
     const id = Date.now().toString();
 
-    // Process each slide
-    const processedSlides = await Promise.all(data.slides.map(async (slide: any) => {
+    // Process each slide and add index
+    const processedSlides = await Promise.all(data.slides.map(async (slide: any, index: number) => {
       return await formatContent({
         ...slide,
-        id: Math.random().toString(36).substring(7), // Generate unique ID for each slide
+        index, // Add slide index for icon logic
+        id: Math.random().toString(36).substring(7),
       });
     }));
 
@@ -517,7 +523,7 @@ export const parseAIResponse = async (response: string): Promise<PresentationDat
     };
   } catch (error) {
     console.error('Error parsing AI response:', error);
-    console.log('Raw response:', response); // For debugging
+    console.log('Raw response:', response);
     throw new Error('Failed to parse AI response');
   }
 };
@@ -528,71 +534,57 @@ export const generatePresentation = async (
 ): Promise<PresentationData> => {
   try {
     onProgress?.('Generating presentation structure...');
-    console.log('🎯 Making API request with input:', typeof input === 'string' ? 'text prompt' : 'file content');
+    console.log('🎯 Generating presentation for:', typeof input === 'string' ? input : 'file content');
     
     const prompt = typeof input === 'string' 
       ? input 
       : `Generate presentation from this document: ${input.content}`;
 
-    const response = await fetch(API_URL, {
+    const response = await fetch('/api/ai', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
         model: 'deepseek-ai/DeepSeek-V3',
         messages: [
           {
             role: 'system',
-            content: `You are a professional presentation creator specializing in creating engaging, visually appealing presentations. Create a comprehensive presentation following these rules:
-
-              1. Content Requirements:
-                - Create at least 8-12 slides for comprehensive coverage
-                - Each slide must be detailed and informative
-                - Include relevant statistics, facts, or data points
-                - Add engaging bullet points and key takeaways
-                - Suggest relevant image descriptions for each slide
-
-              2. Slide Structure:
-                - Start with an attention-grabbing title slide
-                - Include an agenda/overview slide
-                - Main content slides with clear headings
-                - End with a strong conclusion/summary slide
-
-              3. Format the response as a JSON object with:
-                - title: string (make it catchy and professional)
-                - slides: array of slides, each with:
-                  - type: 'title' | 'content' | 'image' | 'bullets'
-                  - title: string (clear and descriptive)
-                  - content: string (detailed content with bullet points using • for bullets)
-                  - imagePrompt?: string (detailed description for slide visual)
-
-              4. Visual Guidelines:
-                - Each slide should have a suggested image prompt
-                - Image prompts should be detailed and specific
-                - Ensure visual continuity throughout the presentation
-
-              Make the presentation engaging, professional, and visually appealing.`
+            content: `You are an expert presentation creator. Create a professional presentation based on the given topic.
+            The presentation should:
+            - Have a clear structure with introduction, body, and conclusion
+            - Include relevant examples and data points
+            - Use concise and impactful language
+            - Have 8-12 slides
+            
+            Return a JSON object in this exact format:
+            {
+              "title": "Presentation Title",
+              "slides": [
+                {
+                  "type": "title|content|bullets|image",
+                  "title": "Slide Title",
+                  "content": "Slide content or bullet points (use • for bullets)",
+                  "imagePrompt": "Description for image generation (only for image slides)"
+                }
+              ]
+            }`
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        temperature: 0.8,
-        max_tokens: 3000
+        temperature: 0.7,
       }),
     });
 
-    console.log('📡 API Response status:', response.status);
     if (!response.ok) {
-      console.error('🔥 API Error:', response.status, response.statusText);
-      throw new Error('Failed to generate presentation structure');
+      throw new Error('Failed to generate presentation');
     }
 
     const data = await response.json();
-    console.log('📦 Raw API response:', data);
+    console.log('🎨 Raw response:', data.choices[0].message.content);
     
     const presentationData = await parseAIResponse(data.choices[0].message.content);
     console.log('🎨 Parsed presentation data:', presentationData);
