@@ -532,126 +532,102 @@ export const generatePresentation = async (
   input: string | FileContent,
   onProgress?: (status: string) => void
 ): Promise<PresentationData> => {
-  let retryCount = 0;
-  const maxRetries = 2;
-  const retryDelay = 1000; // 1 second delay
-
-  const handleError = async (error: any, attempt: number) => {
-    console.error(`💥 Error in generatePresentation (Attempt ${attempt + 1}/${maxRetries + 1}):`, error);
+  try {
+    onProgress?.('Generating presentation structure...');
+    console.log('🎯 Generating presentation for:', typeof input === 'string' ? input : 'file content');
     
-    if (retryCount < maxRetries) {
-      retryCount++;
-      onProgress?.(`Retrying... (Attempt ${retryCount + 1}/${maxRetries + 1})`);
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-      return true; // continue retrying
-    }
-    return false; // stop retrying
-  };
+    const prompt = typeof input === 'string' 
+      ? input 
+      : `Generate presentation from this document: ${input.content}`;
 
-  while (retryCount <= maxRetries) {
-    try {
-      onProgress?.(`Generating presentation structure... ${retryCount > 0 ? `(Attempt ${retryCount + 1}/${maxRetries + 1})` : ''}`);
-      console.log('🎯 Generating presentation for:', typeof input === 'string' ? input : 'file content');
-      
-      const prompt = typeof input === 'string' 
-        ? input 
-        : `Generate presentation from this document: ${input.content}`;
-
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'deepseek-ai/DeepSeek-V3',
-          messages: [
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'deepseek-ai/DeepSeek-V3',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert presentation creator. Create a professional presentation based on the given topic.
+            The presentation should:
+            - Have a clear structure with introduction, body, and conclusion
+            - Include relevant examples and data points
+            - Use concise and impactful language
+            - Have 8-12 slides
+            
+            Return a JSON object in this exact format:
             {
-              role: 'system',
-              content: `You are an expert presentation creator. Create a concise professional presentation based on the given topic.
-              The presentation should:
-              - Have a clear structure with introduction, body, and conclusion
-              - Include key points and examples
-              - Use concise language
-              - Have 6-8 slides to keep it brief
-              
-              Return a JSON object in this exact format:
-              {
-                "title": "Presentation Title",
-                "slides": [
-                  {
-                    "type": "title|content|bullets|image",
-                    "title": "Slide Title",
-                    "content": "Slide content or bullet points (use • for bullets)",
-                    "imagePrompt": "Description for image generation (only for image slides)"
-                  }
-                ]
-              }`
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('API Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
-
-        if ((response.status === 504 || response.status === 500) && await handleError(errorData, retryCount)) {
-          continue;
-        }
-
-        throw new Error(errorData.error || `Failed to generate presentation (Status: ${response.status})`);
-      }
-
-      const data = await response.json();
-      
-      if (!data.choices?.[0]?.message?.content) {
-        throw new Error('Invalid response format from AI API');
-      }
-
-      const presentationData = await parseAIResponse(data.choices[0].message.content);
-      console.log('🎨 Parsed presentation data:', presentationData);
-
-      onProgress?.('Generating visuals...');
-
-      // Generate images for slides that need them
-      const slidesWithImages = await Promise.all(
-        presentationData.slides.map(async (slide) => {
-          if (slide.type === 'image') {
-            try {
-              const imagePrompt = generateSlideImagePrompt(slide);
-              slide.imageUrl = await generateImageUrl(imagePrompt);
-            } catch (error) {
-              console.error('Error generating image for slide:', error);
-              slide.imageUrl = 'https://image.pollinations.ai/prompt/fallback%20presentation%20slide%20background';
-            }
+              "title": "Presentation Title",
+              "slides": [
+                {
+                  "type": "title|content|bullets|image",
+                  "title": "Slide Title",
+                  "content": "Slide content or bullet points (use • for bullets)",
+                  "imagePrompt": "Description for image generation (only for image slides)"
+                }
+              ]
+            }`
+          },
+          {
+            role: 'user',
+            content: prompt
           }
-          return slide;
-        })
-      );
+        ],
+        temperature: 0.7,
+      }),
+    });
 
-      onProgress?.('Finalizing presentation...');
-
-      return {
-        ...presentationData,
-        slides: slidesWithImages,
-      };
-    } catch (error) {
-      if (!(await handleError(error, retryCount))) {
-        throw error;
-      }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      throw new Error(errorData.error || 'Failed to generate presentation');
     }
-  }
 
-  throw new Error('Failed to generate presentation after multiple attempts');
+    const data = await response.json();
+    console.log('🎨 Raw response:', data.choices?.[0]?.message?.content || 'No content in response');
+    
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response format from AI API');
+    }
+
+    const presentationData = await parseAIResponse(data.choices[0].message.content);
+    console.log('🎨 Parsed presentation data:', presentationData);
+
+    onProgress?.('Generating visuals...');
+
+    // Generate images for slides that need them
+    const slidesWithImages = await Promise.all(
+      presentationData.slides.map(async (slide) => {
+        if (slide.type === 'image') {
+          try {
+            const imagePrompt = generateSlideImagePrompt(slide);
+            slide.imageUrl = await generateImageUrl(imagePrompt);
+          } catch (error) {
+            console.error('Error generating image for slide:', error);
+            // Use a fallback image URL
+            slide.imageUrl = 'https://image.pollinations.ai/prompt/fallback%20presentation%20slide%20background';
+          }
+        }
+        return slide;
+      })
+    );
+
+    onProgress?.('Finalizing presentation...');
+
+    return {
+      ...presentationData,
+      slides: slidesWithImages,
+    };
+  } catch (error) {
+    console.error('💥 Error in generatePresentation:', error);
+    throw error;
+  }
 };
 
 export const downloadPresentation = async (data: PresentationData) => {
