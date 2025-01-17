@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { fetchWithRetries } from '@/utils/api';
 
-export const maxDuration = 300; // Set max duration to 300 seconds (5 minutes)
+export const maxDuration = 60; // Set max duration to 60 seconds (Vercel hobby plan limit)
 
 export async function POST(req: Request) {
   try {
@@ -23,9 +23,9 @@ export async function POST(req: Request) {
         'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AI_API_KEY}`,
       },
       body: JSON.stringify(body),
-      maxRetries: 3,
-      timeout: 60000, // 60 seconds timeout
-      retryDelay: 2000, // 2 seconds delay between retries
+      maxRetries: 2,
+      timeout: 25000, // 25 seconds timeout to allow for retries within 60s limit
+      retryDelay: 1000, // 1 second delay between retries
     });
 
     if (!response.ok) {

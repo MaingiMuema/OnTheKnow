@@ -533,11 +533,24 @@ export const generatePresentation = async (
   onProgress?: (status: string) => void
 ): Promise<PresentationData> => {
   let retryCount = 0;
-  const maxRetries = 3;
+  const maxRetries = 2;
+  const retryDelay = 1000; // 1 second delay
 
-  while (retryCount < maxRetries) {
+  const handleError = async (error: any, attempt: number) => {
+    console.error(`💥 Error in generatePresentation (Attempt ${attempt + 1}/${maxRetries + 1}):`, error);
+    
+    if (retryCount < maxRetries) {
+      retryCount++;
+      onProgress?.(`Retrying... (Attempt ${retryCount + 1}/${maxRetries + 1})`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      return true; // continue retrying
+    }
+    return false; // stop retrying
+  };
+
+  while (retryCount <= maxRetries) {
     try {
-      onProgress?.(`Generating presentation structure... ${retryCount > 0 ? `(Attempt ${retryCount + 1}/${maxRetries})` : ''}`);
+      onProgress?.(`Generating presentation structure... ${retryCount > 0 ? `(Attempt ${retryCount + 1}/${maxRetries + 1})` : ''}`);
       console.log('🎯 Generating presentation for:', typeof input === 'string' ? input : 'file content');
       
       const prompt = typeof input === 'string' 
@@ -554,12 +567,12 @@ export const generatePresentation = async (
           messages: [
             {
               role: 'system',
-              content: `You are an expert presentation creator. Create a professional presentation based on the given topic.
+              content: `You are an expert presentation creator. Create a concise professional presentation based on the given topic.
               The presentation should:
               - Have a clear structure with introduction, body, and conclusion
-              - Include relevant examples and data points
-              - Use concise and impactful language
-              - Have 8-12 slides
+              - Include key points and examples
+              - Use concise language
+              - Have 6-8 slides to keep it brief
               
               Return a JSON object in this exact format:
               {
@@ -591,9 +604,7 @@ export const generatePresentation = async (
           error: errorData
         });
 
-        if (response.status === 504 && retryCount < maxRetries - 1) {
-          retryCount++;
-          await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
+        if ((response.status === 504 || response.status === 500) && await handleError(errorData, retryCount)) {
           continue;
         }
 
@@ -601,7 +612,6 @@ export const generatePresentation = async (
       }
 
       const data = await response.json();
-      console.log('🎨 Raw response:', data.choices?.[0]?.message?.content || 'No content in response');
       
       if (!data.choices?.[0]?.message?.content) {
         throw new Error('Invalid response format from AI API');
@@ -621,7 +631,6 @@ export const generatePresentation = async (
               slide.imageUrl = await generateImageUrl(imagePrompt);
             } catch (error) {
               console.error('Error generating image for slide:', error);
-              // Use a fallback image URL
               slide.imageUrl = 'https://image.pollinations.ai/prompt/fallback%20presentation%20slide%20background';
             }
           }
@@ -636,15 +645,9 @@ export const generatePresentation = async (
         slides: slidesWithImages,
       };
     } catch (error) {
-      console.error('💥 Error in generatePresentation:', error);
-      
-      if (retryCount < maxRetries - 1) {
-        retryCount++;
-        await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
-        continue;
+      if (!(await handleError(error, retryCount))) {
+        throw error;
       }
-      
-      throw error;
     }
   }
 
