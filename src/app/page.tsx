@@ -96,7 +96,7 @@ export default function Home() {
       {/* Hero Section */}
       <motion.div 
         style={{ scale, opacity, y }}
-        className="relative min-h-screen flex items-center justify-center"
+        className="relative min-h-screen flex items-center justify-center px-4 py-8 md:py-0"
       >
         <div className="absolute inset-0 overflow-hidden">
           <motion.div 
@@ -113,10 +113,10 @@ export default function Home() {
           />
         </div>
 
-        <div className={`relative z-10 w-full transition-all duration-500 ${isGenerating ? 'px-8 flex gap-8' : 'px-4 max-w-3xl mx-auto'}`}>
+        <div className={`relative z-10 w-full transition-all duration-500 ${isGenerating ? 'md:px-8 md:flex md:gap-8' : 'max-w-3xl mx-auto'}`}>
           <motion.div 
             layout
-            className={`space-y-8 ${isGenerating ? 'w-1/2 text-left pt-20' : 'text-center'}`}
+            className={`space-y-8 ${isGenerating ? 'md:w-1/2 text-left md:pt-20' : 'text-center'}`}
           >
             <motion.h1 
               layout
@@ -127,7 +127,7 @@ export default function Home() {
                 type: "spring",
                 stiffness: 100
               }}
-              className={`font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 ${isGenerating ? 'text-4xl md:text-5xl' : 'text-6xl md:text-8xl'}`}
+              className={`font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 ${isGenerating ? 'text-3xl sm:text-4xl md:text-5xl' : 'text-4xl sm:text-6xl md:text-8xl'}`}
             >
               FlashSlides
             </motion.h1>
@@ -136,7 +136,7 @@ export default function Home() {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.4, duration: 0.8 }}
-              className="text-xl md:text-2xl text-gray-300"
+              className="text-lg sm:text-xl md:text-2xl text-gray-300"
             >
               Transform your ideas into stunning presentations with AI
             </motion.p>
@@ -155,9 +155,9 @@ export default function Home() {
                 className="w-full h-32 p-4 bg-gray-800/50 backdrop-blur rounded-xl border border-purple-500/30 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 outline-none text-white placeholder-gray-400 transition-all resize-none"
               />
               
-              <div className="flex gap-4 justify-center">
-                <label className="px-6 py-3 rounded-xl border border-purple-500 hover:bg-purple-600/20 transition-colors text-white font-semibold cursor-pointer group flex items-center gap-2">
-                  <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <label className="px-4 sm:px-6 py-3 rounded-xl border border-purple-500 hover:bg-purple-600/20 transition-colors text-white font-semibold cursor-pointer group flex items-center justify-center gap-2 text-sm sm:text-base">
+                  <Upload className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
                   Upload Document
                   <input 
                     type="file" 
@@ -171,12 +171,24 @@ export default function Home() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleGenerate}
-                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition-colors text-white font-semibold flex-1"
+                  className="px-6 sm:px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition-colors text-white font-semibold flex-1 text-sm sm:text-base"
                 >
                   Generate Presentation
                 </motion.button>
               </div>
             </motion.div>
+
+            {isGenerating && !presentationData && (
+              <div className="mt-8 space-y-4 text-center md:hidden">
+                <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                <h2 className="text-xl font-semibold">
+                  {generationStatus}
+                </h2>
+                <p className="text-gray-400">
+                  This may take a few moments...
+                </p>
+              </div>
+            )}
           </motion.div>
 
           <AnimatePresence>
@@ -185,7 +197,7 @@ export default function Home() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="w-1/2 bg-gray-900/50 backdrop-blur rounded-2xl p-6 border mt-20 border-purple-500/20 h-[600px] relative"
+                className="hidden md:block w-1/2 bg-gray-900/50 backdrop-blur rounded-2xl p-6 border mt-20 border-purple-500/20 h-[600px] relative"
               >
                 {presentationData ? (
                   <div className="h-full overflow-y-auto pb-16 custom-scrollbar">
@@ -212,6 +224,17 @@ export default function Home() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {isGenerating && presentationData && (
+            <div className="mt-8 md:hidden">
+              <PresentationTemplate
+                presentation={presentationData}
+                currentSlide={currentSlide}
+                onSlideChange={handleSlideChange}
+                onDownload={handleDownload}
+              />
+            </div>
+          )}
         </div>
 
         <motion.div 
@@ -229,7 +252,7 @@ export default function Home() {
               repeatType: "reverse"
             }
           }}
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full filter blur-3xl opacity-20"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-48 sm:w-64 h-48 sm:h-64 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full filter blur-3xl opacity-20"
         />
       </motion.div>
     </div>
