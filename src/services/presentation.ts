@@ -451,6 +451,76 @@ const generateSlideCode = async (slide: Partial<Slide>): Promise<{ html: string;
   };
 };
 
+function generateSlideHTML(slide: Slide): { html: string; css: string } {
+  const { type, title, content, theme } = slide;
+  let html = '';
+  let css = '';
+
+  // Base CSS for all slides
+  css = `
+    .slide-container {
+      width: 100%;
+      height: 100%;
+      padding: 4rem;
+      background: ${theme?.background || '#ffffff'};
+      color: ${theme?.text || '#000000'};
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .slide-title {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin-bottom: 2rem;
+      color: ${theme?.primary || '#2563eb'};
+    }
+    .slide-content {
+      font-size: 1.5rem;
+      line-height: 1.5;
+    }
+    .bullet-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    .bullet-item {
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+    .bullet-item:before {
+      content: "•";
+      color: ${theme?.accent || '#f59e0b'};
+      position: absolute;
+      left: 0;
+    }
+  `;
+
+  // Generate HTML based on slide type
+  html = `<div class="slide-container">
+    <h1 class="slide-title">${title}</h1>`;
+
+  if (type === 'bullets' && content) {
+    const bullets = content.split('\n• ').filter(bullet => bullet.trim());
+    html += `
+      <ul class="bullet-list">
+        ${bullets.map(bullet => `<li class="bullet-item">${bullet.trim()}</li>`).join('')}
+      </ul>`;
+  } else if (type === 'image' && slide.imageUrl) {
+    html += `
+      <div class="slide-content">
+        <img src="${slide.imageUrl}" alt="${title}" style="max-width: 100%; max-height: 60vh; object-fit: contain;" />
+        <p style="margin-top: 1rem; text-align: center;">${content}</p>
+      </div>`;
+  } else {
+    html += `<div class="slide-content">${content}</div>`;
+  }
+
+  html += '</div>';
+
+  return { html, css };
+}
+
 const formatContent = async (slide: any): Promise<Partial<Slide>> => {
   // Only generate icons for specific slides
   const shouldHaveIcon = (slide: any): boolean => {
@@ -486,55 +556,81 @@ const formatContent = async (slide: any): Promise<Partial<Slide>> => {
   return { ...enrichedSlide, html, css };
 };
 
-const parseAIResponse = async (response: string): Promise<PresentationData> => {
+async function parseAIResponse(response: string): Promise<PresentationData> {
   try {
-    // Clean the response by removing markdown formatting
-    const jsonStr = response.replace(/```json\s*|\s*```/g, '').trim();
-    const data = JSON.parse(jsonStr);
-
-    // Validate the response structure
-    if (!data.title || !Array.isArray(data.slides)) {
-      throw new Error('Invalid presentation data structure');
+    // Clean the response by removing markdown code block markers
+    const cleanedResponse = response.replace(/```json\s*|\s*```/g, '').trim();
+    const parsed = JSON.parse(cleanedResponse);
+    
+    if (!parsed.title || !Array.isArray(parsed.slides)) {
+      throw new Error('Invalid response format: missing title or slides array');
     }
 
-    // Generate a unique ID for the presentation
-    const id = Date.now().toString();
-
-    // Process each slide and add index
-    const processedSlides = await Promise.all(data.slides.map(async (slide: any, index: number) => {
-      return await formatContent({
-        ...slide,
-        index, // Add slide index for icon logic
-        id: Math.random().toString(36).substring(7),
-      });
-    }));
-
-    return {
-      id,
-      title: data.title,
-      slides: processedSlides,
-      theme: processedSlides[0]?.theme || {
-        primary: '#9333EA',
-        secondary: '#EC4899',
-        accent: '#A855F7',
-        background: '#111827',
-        text: '#FFFFFF',
-      },
+    const theme = {
+      primary: '#2563eb',
+      secondary: '#4b5563',
+      accent: '#f59e0b',
+      background: '#ffffff',
+      text: '#171717'
     };
-  } catch (error) {
-    console.error('Error parsing AI response:', error);
-    console.log('Raw response:', response);
+
+    // Transform the simpler format into our full format
+    const presentationData: PresentationData = {
+      id: Date.now().toString(),
+      title: parsed.title,
+      theme,
+      slides: parsed.slides.map((slide: any, index: number) => {
+        const processedSlide: Slide = {
+          id: Math.random().toString(36).substring(7),
+          type: slide.type || (index === 0 ? 'title' : 'bullets'),
+          title: slide.title || '',
+          content: Array.isArray(slide.content) ? slide.content.join('\n• ') : (slide.content || ''),
+          html: '',
+          css: '',
+          ...theme
+        };
+
+        // Generate HTML and CSS for the slide
+        const { html, css } = generateSlideHTML(processedSlide);
+        processedSlide.html = html;
+        processedSlide.css = css;
+
+        return processedSlide;
+      }) as Slide[]
+    };
+    
+    // Add an image slide at the end
+    const summarySlide: Slide = {
+      id: Math.random().toString(36).substring(7),
+      type: 'image',
+      title: 'Visual Summary',
+      content: `A visual representation of ${presentationData.title}`,
+      html: '',
+      css: '',
+      ...theme
+    };
+    
+    // Generate HTML and CSS for the summary slide
+    const { html, css } = generateSlideHTML(summarySlide);
+    summarySlide.html = html;
+    summarySlide.css = css;
+    
+    presentationData.slides.push(summarySlide);
+
+    return presentationData;
+  } catch (e) {
+    console.error('Error parsing presentation data:', e);
     throw new Error('Failed to parse AI response');
   }
-};
+}
 
 export const generatePresentation = async (
   input: string | FileContent,
   onProgress?: (status: string) => void
 ): Promise<PresentationData> => {
   try {
-    console.log('🚀 Starting presentation generation...', { prompt: input, file: null });
-    onProgress?.('Starting generation...');
+    onProgress?.('Generating presentation structure...');
+    console.log('🎯 Generating presentation for:', typeof input === 'string' ? input : 'file content');
     
     const prompt = typeof input === 'string' 
       ? input 
@@ -546,77 +642,48 @@ export const generatePresentation = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        model: 'deepseek-ai/DeepSeek-V3',
         messages: [
           {
             role: 'system',
-            content: `You are an expert presentation creator. Create a professional presentation based on the given topic.
-            The presentation should:
-            - Have a clear structure with introduction, body, and conclusion
-            - Include relevant examples and illustrations
-            - Be engaging and visually appealing
-            - Have 8-12 slides
-            
-            Return a JSON object in this exact format:
-            {
-              "title": "Presentation Title",
+            content: `Create a concise presentation outline. Format: {
+              "title": "Title",
               "slides": [
                 {
-                  "type": "title|content|bullets|image",
+                  "type": "title|bullets",
                   "title": "Slide Title",
-                  "content": "Slide content or bullet points (use • for bullets)",
-                  "imagePrompt": "Description for image generation (only for image slides)"
+                  "content": "3-4 bullet points"
                 }
               ]
-            }`
+            }. Use 4-6 slides only.`
           },
           {
             role: 'user',
             content: prompt
           }
-        ]
-      })
+        ],
+        temperature: 0.7,
+      }),
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      throw new Error(errorData.error || 'Failed to generate presentation');
     }
 
     const data = await response.json();
-    console.log('Received AI response:', data);
-
+    console.log('🎨 Raw response:', data.choices?.[0]?.message?.content || 'No content in response');
+    
     if (!data.choices?.[0]?.message?.content) {
       throw new Error('Invalid response format from AI API');
     }
 
-    onProgress?.('Processing response...');
-    const presentationData = await parseAIResponse(data.choices[0].message.content);
-    console.log('Parsed presentation data:', presentationData);
-
-    onProgress?.('Generating visuals...');
-    // Generate images for slides that need them
-    const slidesWithImages = await Promise.all(
-      presentationData.slides.map(async (slide) => {
-        if (slide.type === 'image') {
-          try {
-            const imagePrompt = generateSlideImagePrompt(slide);
-            slide.imageUrl = await generateImageUrl(imagePrompt);
-          } catch (error) {
-            console.error('Error generating image for slide:', error);
-            // Use a fallback image URL
-            slide.imageUrl = 'https://image.pollinations.ai/prompt/fallback%20presentation%20slide%20background';
-          }
-        }
-        return slide;
-      })
-    );
-
-    onProgress?.('Finalizing presentation...');
-
-    return {
-      ...presentationData,
-      slides: slidesWithImages,
-    };
+    return await parseAIResponse(data.choices[0].message.content);
   } catch (error) {
     console.error('💥 Error in generatePresentation:', error);
     throw error;
